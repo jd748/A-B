@@ -12,14 +12,25 @@ int main()
     std::cout << "\n Please enter number of patients n \n";
     std::cin >> n;
 
-    double x [n][p];
-    std::default_random_engine generator;
-    std::normal_distribution <float> nd(0.0, 2.0);
+    std::mt19937 generator1 (61245);
+    std::mt19937 generator2 (16746);
+    std::normal_distribution <double> nd(0.0, 1.0);
+
+    double s [n][n];
+    double zee [n][p];
 
     for (int i = 0; i < n; i++){
         for (int j = 0; j < p; j++){
-            x[i][j] = nd(generator);
+            zee[i][j] = nd(generator1);
         }
     }
+
+    for (int i = 0; i < p; i++){
+        for (int j = 0; j < p; j++){
+            s[i][j] = 2*nd(generator2);
+        }
+    }
+
+
        
 }
