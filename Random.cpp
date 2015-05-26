@@ -1,6 +1,7 @@
 //Generates instance of random customers
 #include <iostream>
 #include <random>
+#include "Eigen/Eigen"
 
 int main()
 {
@@ -16,6 +17,8 @@ int main()
     std::mt19937 generator2 (16746);
     std::normal_distribution <double> nd(0.0, 1.0);
 
+    //s is Cholesky factorization of Covar matrix
+    //mu is vector of patient attribute means
     double s [p][p];
     double zee [n][p];
     double Z[n][p];
@@ -29,7 +32,15 @@ int main()
 
     for (int i = 0; i < p; i++){
         for (int j = 0; j < p; j++){
-            s[i][j] = 2*nd(generator2);
+            if (i==j)
+            {
+                s[i][j] = 1.0;
+            }
+            else
+            {
+                s[i][j] = 0.1;
+            }
+            //s[i][j] = 2*nd(generator2);
         }
     }
 
@@ -46,5 +57,7 @@ int main()
                 Z[i][j] = temp + mu[j];
         } 
     }
+
+
 }
 
