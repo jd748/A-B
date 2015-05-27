@@ -2,6 +2,9 @@
 #include <iostream>
 #include <random>
 #include "Eigen/Eigen"
+#include <math.h>
+#include <algorithm>
+#include <vector>
 
 int main()
 {
@@ -17,8 +20,10 @@ int main()
     std::mt19937 generator2 (16746);
     std::mt19937 generator3 (27351);
     std::mt19937 generator4 (66459);
+    std::mt19937 generator5 (12612);
     std::normal_distribution <double> nd(0.0, 1.0);
     std::chi_squared_distribution <double> xs(p - 2);
+    std::uniform_real_distribution <double> u(0.0, 1.0);
 
     //s is Cholesky factorization of Covar matrix
     //mu is vector of patient attribute means
@@ -72,24 +77,53 @@ int main()
     }
 
     //Solving 2-D DP using mesh
-    M = 2000.0;
-    delta = 0.2;
-    N = 10000;
+    double M = 2000.0;
+    double delta = 0.2;
+    int N = 10000;
 
     double table [2*n+1][N][n];
-    
+    double minus;
+    double plus;
+    double lambda;
+    double temp;
+    double round;
+
+    //Boundary condition
     for (int i = 0; i < N; i++){
         for (int j = 0; j < 2*n+1;j++){
             table[j][i][0] = (-n + i)^2 + (0 + delta*j);
         }
     }
     
-    for (int k = 1;k < n; k++){
+    for (int l = 1;l < n; k++){
         for (int i = 0; i < N; i++){
-            for (int j = 0; j < 2*n + 1; j++){
-                                    
+            for (int j = 0; j < 2*(n-l) + 1; j++){
+                temp = 0;
+                for (int w = 0; w <n; w++){
+                    round = floor(((sqrt(i)-eta[w])^2 + xi[w]+ delta/2)/delta)+N/2;
+                    if (round > M)
+                        round = M;
+                    minus = table[j-1][round][l];
+                    round = floor(((sqrt(i)+eta[w])^2 + xi[w] + delta/2)/delta) + N/2;
+                    if (round > M)
+                        round = M;
+                    plus = table[j+1][round][l];
+                    if(minus<plus){
+                        temp = temp + minus;
+                    } 
+                    else{
+                        temp = temp + plus;
+                    }          
+                }
             }
         }
     }
+
+    
+    //Vs Naive random allocation
+    //Eff = x^T P_Z x where x is allocations, P_Z = I - Z(Z^T Z)^(-1) Z^T
+    double e_rand = n/ 
+    
+
 }
 
