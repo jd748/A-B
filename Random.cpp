@@ -1,20 +1,16 @@
-//Generates instance of random customers
-#include <iostream>
 #include <random>
 #include "Eigen/Eigen"
 #include <math.h>
 #include <algorithm>
 #include <vector>
+#include <iostream>
+#include <cmath>
+#include "DP.hh"
 
 int main()
 {
-    int p;
-    std::cout << "\n Please enter dim of covariates \n";
-    std::cin >> p;
-
-    int n;
-    std::cout << "\n Please enter number of patients n \n";
-    std::cin >> n;
+    int p = 5;
+    int n = 100;
 
     std::mt19937 generator1 (61245);
     std::mt19937 generator2 (16746);
@@ -29,6 +25,7 @@ int main()
     //mu is vector of patient attribute means
     double s [p][p];
     double zee [n][p];
+    Eigen::MatrixXf Z2(n,p);
     double Z[n][p];
     double mu [p];
 
@@ -48,7 +45,6 @@ int main()
             {
                 s[i][j] = 0.1;
             }
-            //s[i][j] = 2*nd(generator2);
         }
     }
 
@@ -63,6 +59,7 @@ int main()
                 temp += s[k][j]*zee[i][k];
             }
                 Z[i][j] = temp + mu[j];
+                Z2(i,j) = Z[i][j];
         } 
     }
 
@@ -79,51 +76,66 @@ int main()
     //Solving 2-D DP using mesh
     double M = 2000.0;
     double delta = 0.2;
+    int steps = ceil(M/delta)+1;
     int N = 10000;
 
-    double table [2*n+1][N][n];
+    DP table(n, delta, M);
+
     double minus;
     double plus;
     double lambda;
-    double temp;
-    double round;
+    int m;
+    int r;
+
 
     //Boundary condition
-    for (int i = 0; i < N; i++){
-        for (int j = 0; j < 2*n+1;j++){
-            table[j][i][0] = (-n + i)^2 + (0 + delta*j);
+    for (int i = 0; i < 2*n + 1; i++){
+        for (int j = 0; j < steps;j++){
+            m = i-n;
+            lambda = delta*j;
+            table.set(0, i, j, pow(m, 2) + lambda);
         }
     }
     
-    for (int l = 1;l < n; k++){
-        for (int i = 0; i < N; i++){
-            for (int j = 0; j < 2*(n-l) + 1; j++){
+    //Solving mesh
+    for (int l = 1;l < n; l++){
+        std::cout << l << "\n";
+        for (int i = l; i < 2*n+1-l; i++){
+            for (int j = 0; j < steps; j++){
                 temp = 0;
-                for (int w = 0; w <n; w++){
-                    round = floor(((sqrt(i)-eta[w])^2 + xi[w]+ delta/2)/delta)+N/2;
-                    if (round > M)
-                        round = M;
-                    minus = table[j-1][round][l];
-                    round = floor(((sqrt(i)+eta[w])^2 + xi[w] + delta/2)/delta) + N/2;
-                    if (round > M)
-                        round = M;
-                    plus = table[j+1][round][l];
-                    if(minus<plus){
-                        temp = temp + minus;
-                    } 
-                    else{
-                        temp = temp + plus;
-                    }          
-                }
+                table.set(l,i,j,i*l*j);
+                std::cerr<<table.at(l,i,j);
             }
         }
     }
 
-    
+    temp = 0;
+
     //Vs Naive random allocation
     //Eff = x^T P_Z x where x is allocations, P_Z = I - Z(Z^T Z)^(-1) Z^T
-    double e_rand = n/ 
     
+    Eigen::MatrixXf PZ;
+    Eigen::MatrixXf I = Eigen::MatrixXf::Identity(n,n);
+    Eigen::MatrixXf Z2I;
+    Z2I = Z2.transpose()*Z2;
+    PZ = I - Z2*(Z2I.inverse())*Z2.transpose();
 
+    int rand_x [n]; 
+    for (int i = 0; i < n; i++){
+        rand_x[i] = -1 + 2*floor(2*i/n);
+    }
+
+    std::vector<int> myvector (rand_x, rand_x + n);
+
+    Eigen::VectorXf random_x(n); 
+    for (int i = 0; i < N; i++){
+        std::random_shuffle ( myvector.begin(), myvector.end());
+        for (int j = 0; j < n; j++){
+            random_x(j) = myvector[j];
+        }
+        temp += random_x.transpose() * PZ * random_x;
+    }
+    double eff_r = temp/N;
+    std::cout << eff_r;
 }
 
