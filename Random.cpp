@@ -9,8 +9,11 @@
 
 int main()
 {
+    // Patients (n), attributes (p), iterations in solving DP (N1), iterations in estimation of ratio (N2);
     int p = 5;
     int n = 100;
+    int N1 = 1000;
+    int N2 = 1000;
 
     std::mt19937 generator1 (61245);
     std::mt19937 generator2 (16746);
@@ -26,9 +29,9 @@ int main()
     double s [p][p];
     double zee [n][p];
     Eigen::MatrixXf Z2(n,p);
-    double Z[n][p];
     double mu [p];
 
+    //Generates matrix of standard normals, then uses cholesky factorization to get correct covar matrix
     for (int i = 0; i < n; i++){
         for (int j = 0; j < p; j++){
             zee[i][j] = nd(generator1);
@@ -58,17 +61,16 @@ int main()
             for (int k = 0; k < p; k++){ 
                 temp += s[k][j]*zee[i][k];
             }
-                Z[i][j] = temp + mu[j];
-                Z2(i,j) = Z[i][j];
+                Z2(i,j) = temp + mu[j];
         } 
     }
 
     //Eta + Xi computation
     
-    double eta [n];
-    double xi [n];
+    double eta [N1];
+    double xi [N1];
 
-    for (int i = 0; i < n; i++){
+    for (int i = 0; i < N1; i++){
         eta[i] = nd(generator3);
         xi[i] = xs(generator4);
     }
@@ -77,16 +79,25 @@ int main()
     double M = 2000.0;
     double delta = 0.2;
     int steps = ceil(M/delta)+1;
-    int N = 10000;
 
     DP table(n, delta, M);
 
-    double minus;
-    double plus;
+    //syntax helpers
     double lambda;
     int m;
-    int r;
 
+    double lambda_up;
+    double lambda_down;
+    double roundup_plus;
+    double rounddown_plus;
+    double roundup_minus;
+    double rounddown_minus;
+
+    double distdown;
+    double distup;
+
+    double plus;
+    double minus;
 
     //Boundary condition
     for (int i = 0; i < 2*n + 1; i++){
@@ -101,41 +112,105 @@ int main()
     for (int l = 1;l < n; l++){
         std::cout << l << "\n";
         for (int i = l; i < 2*n+1-l; i++){
+            m = i-n;
             for (int j = 0; j < steps; j++){
+                lambda = delta*j;
                 temp = 0;
-                table.set(l,i,j,i*l*j);
-                std::cerr<<table.at(l,i,j);
+                for (int iter = 0; iter < N1; iter++){ 
+                    lambda_up = pow(sqrt(lambda)+eta[iter],2)+xi[iter];
+                    roundup_plus = ceil(lambda_up/delta);
+                    rounddown_plus = floor(lambda_up/delta); 
+                    distdown = lambda_up - rounddown_plus;
+                    distup = rounddown_plus - lambda_down;
+                    plus = (1/delta)*(distdown*table.at(l-1, i+1, rounddown_plus) + distup*table.at(l-1, i+1, roundup_plus));
+
+                    lambda_down = pow(sqrt(lambda)+eta[iter],2)+xi[iter];
+                    roundup_minus = ceil(lambda_down/delta);
+                    rounddown_minus = floor(lambda_down/delta);
+                    distdown = lambda_up - rounddown_minus;
+                    distup = roundup_minus - lambda_up;
+                    minus = (1/delta)*(distdown*table.at(l-1,i-1,rounddown_minus) + distup*table.at(l-1,i-1,roundup_minus));
+
+                    temp = temp*(iter-1)/iter + std::min(plus,minus)/iter;
+                }
+
+                table.set(l,i,j,temp);          
+                
             }
         }
     }
 
-    temp = 0;
-
     //Vs Naive random allocation
     //Eff = x^T P_Z x where x is allocations, P_Z = I - Z(Z^T Z)^(-1) Z^T
-    
+
     Eigen::MatrixXf PZ;
     Eigen::MatrixXf I = Eigen::MatrixXf::Identity(n,n);
     Eigen::MatrixXf Z2I;
-    Z2I = Z2.transpose()*Z2;
-    PZ = I - Z2*(Z2I.inverse())*Z2.transpose();
+    
+    //Generates matrix of standard normals, then uses cholesky factorization to get correct covar matrix
+     
+    for (int i = 0; i < p; i++){
+        for (int j = 0; j < p; j++){
+            if (i==j) {
+                s[i][j] = 1.0; 
+            } else {
+                s[i][j] = 0.1;
+            }
+        }
+    }
 
-    int rand_x [n]; 
+    //Vector of n/2 1's and -1's
+    int rand_x[n];
     for (int i = 0; i < n; i++){
         rand_x[i] = -1 + 2*floor(2*i/n);
     }
 
-    std::vector<int> myvector (rand_x, rand_x + n);
+    std::vector <int> myvector (rand_x, rand_x+n);
+    Eigen::VectorXf random_x(n);
+    Eigen::VectorXf dp_x(n);
 
-    Eigen::VectorXf random_x(n); 
-    for (int i = 0; i < N; i++){
-        std::random_shuffle ( myvector.begin(), myvector.end());
-        for (int j = 0; j < n; j++){
-            random_x(j) = myvector[j];
+    double eff_r = 0;
+    double eff_dp = 0;
+
+    //Large loop to test policies
+    for (int asdf = 0; asdf < N2; asdf++){
+
+        for (int i = 0; i < n; i++){
+            for (int j = 0; j < p; j++){
+                zee[i][j] = nd(generator1);
+            }
+        }    
+                
+        //Z is matrix of patient attributes (n x p)  
+        for (int i = 0; i < n; i++){
+            for (int j = 0; j < p; j++){
+                temp = 0;
+                for (int k = 0; k < p; k++){
+                    temp += s[k][j]*zee[i][k];
+                }
+            }
+
+            Z2(i,j) = temp + mu[j];
+        }    
+    
+        Z2I = Z2.transpose()*Z2;
+        PZ = I - Z2*(Z2I.inverse())*Z2.transpose(); 
+    
+        temp = 0;
+        for (int i = 0; i < N1; i++){
+            std::random_shuffle ( myvector.begin(), myvector.end());
+            for (int j = 0; j < n; j++){
+                random_x(j) = myvector[j];
+            }
+            temp += random_x.transpose() * PZ * random_x;
         }
-        temp += random_x.transpose() * PZ * random_x;
+
+        eff_r = temp/N1;
+
+        for (int i = 0; i < n; i++){
+        //Need to do argmin procedure
+        }
+
     }
-    double eff_r = temp/N;
-    std::cout << eff_r;
 }
 
