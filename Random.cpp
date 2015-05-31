@@ -57,11 +57,10 @@ int main()
     for (int i = 0; i < n; i++){
         for (int j = 0; j < p; j++){ 
             temp = 0;
-
             for (int k = 0; k < p; k++){ 
                 temp += s[k][j]*zee[i][k];
             }
-                Z2(i,j) = temp + mu[j];
+            Z2(i,j) = temp + mu[j];
         } 
     }
 
@@ -83,21 +82,21 @@ int main()
     DP table(n, delta, M);
 
     //syntax helpers
-    double lambda;
-    int m;
+    double lambda = 0;
+    int m = 0;
 
-    double lambda_up;
-    double lambda_down;
-    double roundup_plus;
-    double rounddown_plus;
-    double roundup_minus;
-    double rounddown_minus;
+    double lambda_up = 0;
+    double lambda_down = 0;
+    double roundup_plus = 0;
+    double rounddown_plus = 0;
+    double roundup_minus = 0;
+    double rounddown_minus = 0;
 
-    double distdown;
-    double distup;
+    double distdown = 0;
+    double distup = 0;
 
-    double plus;
-    double minus;
+    double plus = 0;
+    double minus = 0;
 
     //Boundary condition
     for (int i = 0; i < 2*n + 1; i++){
@@ -188,9 +187,8 @@ int main()
                 for (int k = 0; k < p; k++){
                     temp += s[k][j]*zee[i][k];
                 }
+                Z2(i,j) = temp + mu[j];
             }
-
-            Z2(i,j) = temp + mu[j];
         }    
     
         Z2I = Z2.transpose()*Z2;
