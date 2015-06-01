@@ -11,9 +11,9 @@ int main()
 {
     // Patients (n), attributes (p), iterations in solving DP (N1), iterations in estimation of ratio (N2);
     int p = 5;
-    int n = 100;
-    int N1 = 1000;
-    int N2 = 1000;
+    int n = 10;
+    int N1 = 100;
+    int N2 = 100;
 
     std::mt19937 generator1 (61245);
     std::mt19937 generator2 (16746);
@@ -26,7 +26,7 @@ int main()
 
     //s is Cholesky factorization of Covar matrix
     //mu is vector of patient attribute means
-    double s [p][p];
+    Eigen::MatrixXf s(p,p);
     double zee [n][p];
     Eigen::MatrixXf Z2(n,p);
     double mu [p];
@@ -42,11 +42,11 @@ int main()
         for (int j = 0; j < p; j++){
             if (i==j)
             {
-                s[i][j] = 1.0;
+                s(i,j) = 1.0;
             }
             else
             {
-                s[i][j] = 0.1;
+                s(i,j) = 0.1;
             }
         }
     }
@@ -58,7 +58,7 @@ int main()
         for (int j = 0; j < p; j++){ 
             temp = 0;
             for (int k = 0; k < p; k++){ 
-                temp += s[k][j]*zee[i][k];
+                temp += s(k,j)*zee[i][k];
             }
             Z2(i,j) = temp + mu[j];
         } 
@@ -139,6 +139,8 @@ int main()
         }
     }
 
+    
+
     //Vs Naive random allocation
     //Eff = x^T P_Z x where x is allocations, P_Z = I - Z(Z^T Z)^(-1) Z^T
 
@@ -147,17 +149,6 @@ int main()
     Eigen::MatrixXf Z2I;
     
     //Generates matrix of standard normals, then uses cholesky factorization to get correct covar matrix
-     
-    for (int i = 0; i < p; i++){
-        for (int j = 0; j < p; j++){
-            if (i==j) {
-                s[i][j] = 1.0; 
-            } else {
-                s[i][j] = 0.1;
-            }
-        }
-    }
-
     //Vector of n/2 1's and -1's
     int rand_x[n];
     for (int i = 0; i < n; i++){
@@ -170,10 +161,19 @@ int main()
 
     double eff_r = 0;
     double eff_dp = 0;
+    double eff = 0;
+
+    //Tracks variable Delta as in paper
+    Eigen::VectorXf var_Delta(p);
+    var_Delta.setZero();
+    Eigen::VectorXf var_Delta_up(p);
+    Eigen::VectorXf var_Delta_down(p);
+    int var_delta = n+1;
+    double mahalanobis = 0;
 
     //Large loop to test policies
     for (int asdf = 0; asdf < N2; asdf++){
-
+        std::cout << "asdf = " << asdf << "\n";
         for (int i = 0; i < n; i++){
             for (int j = 0; j < p; j++){
                 zee[i][j] = nd(generator1);
@@ -185,7 +185,7 @@ int main()
             for (int j = 0; j < p; j++){
                 temp = 0;
                 for (int k = 0; k < p; k++){
-                    temp += s[k][j]*zee[i][k];
+                    temp += s(k,j)*zee[i][k];
                 }
                 Z2(i,j) = temp + mu[j];
             }
@@ -193,7 +193,8 @@ int main()
     
         Z2I = Z2.transpose()*Z2;
         PZ = I - Z2*(Z2I.inverse())*Z2.transpose(); 
-    
+        
+        //This is where randomized sampling is done 
         temp = 0;
         for (int i = 0; i < N1; i++){
             std::random_shuffle ( myvector.begin(), myvector.end());
@@ -204,11 +205,45 @@ int main()
         }
 
         eff_r = temp/N1;
-
+        
+        //This is where we do "optimal" sampling
         for (int i = 0; i < n; i++){
-        //Need to do argmin procedure
+            var_Delta_up = var_Delta + Z2.row(i).transpose();
+            roundup_plus = ceil(mahalanobis/delta);
+            rounddown_plus = floor(mahalanobis/delta);
+            distdown = roundup_plus - mahalanobis/delta;
+            distup = mahalanobis/delta - rounddown_plus;
+            std::cout << var_delta << "\n";
+            std::cout << (n-i)*(2*n+1)*(ceil(M/delta)+1)+(var_delta+1)*(ceil(M/delta)+1)+(roundup_plus) << "\n";
+            std::cout << table.size() << "\n"; 
+            plus = (1/delta)*(distdown*table.at(n-i,var_delta+1, rounddown_plus) + distup*table.at(n-i,var_delta+1,roundup_plus));
+            std::cout << "plus done \n";
+
+            var_Delta_down = var_Delta - Z2.row(i).transpose();
+            mahalanobis = var_Delta_down.transpose()*s.inverse()*var_Delta_down;
+            roundup_minus = ceil(mahalanobis/delta);
+            rounddown_minus = ceil(mahalanobis/delta);
+            distdown = roundup_plus - mahalanobis/delta;
+            distup = mahalanobis/delta - rounddown_plus;
+            minus = (1/delta)*(distdown*table.at(n-i,var_delta-1, rounddown_minus) + distup*table.at(n-i,var_delta-1,roundup_minus));
+
+            if (minus >= plus){
+                var_delta++;
+                var_Delta = var_Delta_up;
+                dp_x(i) = 1;
+            } else{
+                var_delta--;
+                var_Delta = var_Delta_down;
+                dp_x(i) = -1;
+            }
+            std::cout << n-i;
         }
 
+        eff_dp = dp_x.transpose()*PZ*dp_x;
+        
+        eff += eff_r/eff_dp;
     }
+
+    std::cout << eff/N2;
 }
 

@@ -27,3 +27,7 @@ void DP::set(int l, int i, int j, double x){
     this->arr.at(this->index(l,i,j)) = x;
 }
 
+int DP::size(){
+    return this->arr.size();
+}
+

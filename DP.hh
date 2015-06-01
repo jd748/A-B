@@ -7,7 +7,7 @@ class DP
 public:
 
     double at(int, int, int);
-
+    int size();
     void set(int, int, int, double);
 
     const int n;
