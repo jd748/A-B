@@ -139,8 +139,6 @@ int main()
         }
     }
 
-    
-
     //Vs Naive random allocation
     //Eff = x^T P_Z x where x is allocations, P_Z = I - Z(Z^T Z)^(-1) Z^T
 
@@ -168,12 +166,13 @@ int main()
     var_Delta.setZero();
     Eigen::VectorXf var_Delta_up(p);
     Eigen::VectorXf var_Delta_down(p);
-    int var_delta = n+1;
+    int var_delta;
     double mahalanobis = 0;
 
     //Large loop to test policies
     for (int asdf = 0; asdf < N2; asdf++){
-        std::cout << "asdf = " << asdf << "\n";
+        //std::cout << "asdf = " << asdf << "\n";
+        var_delta = n+1;
         for (int i = 0; i < n; i++){
             for (int j = 0; j < p; j++){
                 zee[i][j] = nd(generator1);
@@ -213,11 +212,11 @@ int main()
             rounddown_plus = floor(mahalanobis/delta);
             distdown = roundup_plus - mahalanobis/delta;
             distup = mahalanobis/delta - rounddown_plus;
-            std::cout << var_delta << "\n";
-            std::cout << (n-i)*(2*n+1)*(ceil(M/delta)+1)+(var_delta+1)*(ceil(M/delta)+1)+(roundup_plus) << "\n";
-            std::cout << table.size() << "\n"; 
-            plus = (1/delta)*(distdown*table.at(n-i,var_delta+1, rounddown_plus) + distup*table.at(n-i,var_delta+1,roundup_plus));
-            std::cout << "plus done \n";
+            //std::cout << var_delta << "\n";
+            //std::cout << rounddown_plus << " " << roundup_plus << "\n";
+            //std::cout << "(" << n-i-1 << "," << var_delta+1 << ", " << rounddown_plus << ") \n"; 
+            plus = (1/delta)*(distdown*table.at(n-i-1,var_delta+1, rounddown_plus) + distup*table.at(n-i-1,var_delta+1,roundup_plus));
+            //std::cout << "plus done \n";
 
             var_Delta_down = var_Delta - Z2.row(i).transpose();
             mahalanobis = var_Delta_down.transpose()*s.inverse()*var_Delta_down;
@@ -225,7 +224,8 @@ int main()
             rounddown_minus = ceil(mahalanobis/delta);
             distdown = roundup_plus - mahalanobis/delta;
             distup = mahalanobis/delta - rounddown_plus;
-            minus = (1/delta)*(distdown*table.at(n-i,var_delta-1, rounddown_minus) + distup*table.at(n-i,var_delta-1,roundup_minus));
+            //std::cout << "(" << n-i-1 << "," << var_delta-1 << ", " << rounddown_plus << ") \n";
+            minus = (1/delta)*(distdown*table.at(n-i-1,var_delta-1, rounddown_minus) + distup*table.at(n-i-1,var_delta-1,roundup_minus));
 
             if (minus >= plus){
                 var_delta++;
@@ -236,7 +236,6 @@ int main()
                 var_Delta = var_Delta_down;
                 dp_x(i) = -1;
             }
-            std::cout << n-i;
         }
 
         eff_dp = dp_x.transpose()*PZ*dp_x;
@@ -244,6 +243,6 @@ int main()
         eff += eff_r/eff_dp;
     }
 
-    std::cout << eff/N2;
+    std::cout << eff/N2 << "\n";
 }
 
