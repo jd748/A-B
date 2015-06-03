@@ -117,11 +117,11 @@ int main()
     }
     
     //Solving mesh
-    for (int l = 1;l < n; l++){
+    for (int l = 1;l < n; l++){ 
         std::cout << l << "\n";
-        for (int i = l-1; i < 2*n+1-l; i++){
+        for (int i = l-1; i < 2*n+1-l; i++){ //under my indexing, l + k = n
             m = i-n;
-            for (int j = 0; j < steps; j++){
+            for (int j = 0; j < steps; j++){ 
                 lambda = delta*j;
                 temp = 0;
                 for (int iter = 0; iter < N1; iter++){ 
@@ -148,7 +148,7 @@ int main()
                     try{ 
                         plus = (1/delta)*(distdown_plus*table.at(l-1, i+1, rounddown_plus) + distup_plus*table.at(l-1, i+1, roundup_plus));
                         minus = (1/delta)*(distdown_minus*table.at(l-1,i-1,rounddown_minus) + distup_minus*table.at(l-1,i-1,roundup_minus));
-                   }
+                    }
                     catch (const std::out_of_range& e){
                         std::cout << "roundup/down_plus " << roundup_plus << ", " << rounddown_plus << "\n";
                         std::cout << "roundup/down_minus " << roundup_minus << ", " << rounddown_minus << "\n";   
