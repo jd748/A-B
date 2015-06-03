@@ -10,10 +10,10 @@
 int main()
 {
     // Patients (n), attributes (p), iterations in solving DP (N1), iterations in estimation of ratio (N2);
-    int p = 5;
+    int p = 2;
     int n = 6;
-    int N1 = 10000;
-    int N2 = 10000;
+    int N1 = 100;
+    int N2 = 100;
 
     std::mt19937 generator1 (61245);
     std::mt19937 generator2 (16746);
@@ -22,25 +22,26 @@ int main()
     std::mt19937 generator5 (12612);
     std::normal_distribution <double> nd(0.0, 1.0);
     std::chi_squared_distribution <double> xs(p - 2);
-    std::uniform_real_distribution <double> u(0.0, 1.0);
 
     //s is Cholesky factorization of Covar matrix
     //mu is vector of patient attribute means
-    Eigen::MatrixXf s(p,p);
-    Eigen::MatrixXf si(p,p);
-    double zee [n][p];
-    Eigen::MatrixXf Z2(n,p);
-    double mu [p];
-
+    Eigen::MatrixXd s(p-1,p-1);
+    Eigen::MatrixXd si(p-1,p-1);
+    Eigen::MatrixXd zee(n,p-1);
+    Eigen::MatrixXd Z(n,p-1);
+    Eigen::MatrixXd Z2(n,p);
+    //Update mu as necessary
+    Eigen::VectorXd mu = Eigen::VectorXd::Zero(p-1);
+    
     //Generates matrix of standard normals, then uses cholesky factorization to get correct covar matrix
     for (int i = 0; i < n; i++){
-        for (int j = 0; j < p; j++){
-            zee[i][j] = nd(generator1);
+        for (int j = 0; j < p-1; j++){
+            zee(i,j) = nd(generator1);
         }
     }
 
-    for (int i = 0; i < p; i++){
-        for (int j = 0; j < p; j++){
+    for (int i = 0; i < p-1; i++){
+        for (int j = 0; j < p-1; j++){
             if (i==j)
             {
                 s(i,j) = 1.0;
@@ -55,18 +56,19 @@ int main()
     si = s.inverse();
 
     double temp = 0;
-
-    //Z is matrix of patient attributes (n x p)
+    
+    //Z2 is matrix of patient attributes (n x p)
+    Z = zee*s;
     for (int i = 0; i < n; i++){
-        for (int j = 0; j < p; j++){ 
-            temp = 0;
-            for (int k = 0; k < p; k++){ 
-                temp += s(k,j)*zee[i][k];
+        for (int j = 0; j < p; j++){
+            if(j > 0){
+                Z2(i,j) = Z(i,j-1) + mu(j-1);
+            } else{
+                Z2(i,j) = 1;
             }
-            Z2(i,j) = temp + mu[j];
-        } 
+        }
     }
-
+            
     //Eta + Xi computation
     
     double eta [N1];
@@ -117,7 +119,7 @@ int main()
     //Solving mesh
     for (int l = 1;l < n; l++){
         std::cout << l << "\n";
-        for (int i = l; i < 2*n+1-l; i++){
+        for (int i = l-1; i < 2*n+1-l; i++){
             m = i-n;
             for (int j = 0; j < steps; j++){
                 lambda = delta*j;
@@ -177,9 +179,9 @@ int main()
     //Vs Naive random allocation
     //Eff = x^T P_Z x where x is allocations, P_Z = I - Z(Z^T Z)^(-1) Z^T
 
-    Eigen::MatrixXf PZ;
-    Eigen::MatrixXf I = Eigen::MatrixXf::Identity(n,n);
-    Eigen::MatrixXf Z2I;
+    Eigen::MatrixXd PZ;
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(n,n);
+    Eigen::MatrixXd Z2I;
     
     //Generates matrix of standard normals, then uses cholesky factorization to get correct covar matrix
     //Vector of n/2 1's and -1's
@@ -189,63 +191,72 @@ int main()
     }
 
     std::vector <int> myvector (rand_x, rand_x+n);
-    Eigen::VectorXf random_x(n);
-    Eigen::VectorXf dp_x(n);
+    Eigen::VectorXd random_x(n);
+    Eigen::VectorXd dp_x(n);
 
     double eff_r = 0;
     double eff_dp = 0;
     double eff = 0;
 
     //Tracks variable Delta as in paper
-    Eigen::VectorXf var_Delta(p);
+    Eigen::VectorXd var_Delta(p-1);
     var_Delta.setZero();
-    Eigen::VectorXf var_Delta_up(p);
-    Eigen::VectorXf var_Delta_down(p);
+    Eigen::VectorXd var_Delta_up(p-1);
+    Eigen::VectorXd var_Delta_down(p-1);
+    Eigen::MatrixXd condition(n,n); //Used to prevent floating point problems
     int var_delta;
     double mahalanobis_plus = 0;
     double mahalanobis_minus = 0;
-
+    //Eigen::EigenSolver<Eigen::MatrixXd> es;
+    
     //Large loop to test policies
     for (int asdf = 0; asdf < N2; asdf++){
         //std::cout << "asdf = " << asdf << "\n";
         var_delta = n+1;
+        
         for (int i = 0; i < n; i++){
-            for (int j = 0; j < p; j++){
-                zee[i][j] = nd(generator1);
+            for (int j = 0; j < p-1; j++){
+                zee(i,j) = nd(generator1);
             }
         }    
-                
+        
         //Z is matrix of patient attributes (n x p)  
+        Z = zee*s;
         for (int i = 0; i < n; i++){
             for (int j = 0; j < p; j++){
-                temp = 0;
-                for (int k = 0; k < p; k++){
-                    temp += s(k,j)*zee[i][k];
+                if(j > 0){
+                    Z2(i,j) = Z(i,j-1) + mu(j-1);
+                } else{
+                    Z2(i,j) = 1;
                 }
-                Z2(i,j) = temp + mu[j];
             }
-        }    
-    
+        }
+
         Z2I = Z2.transpose()*Z2;
         PZ = I - Z2*(Z2I.inverse())*Z2.transpose(); 
-        
+        //es.compute(PZ, false);
+        //temp = 0;
+        //for (int i = 0; i < n; i++){
+        //    if (temp > (double)(es.eigenvalues()(i,0).real())){
+        //        temp = (double)(es.eigenvalues()(i,0).real());
+        //    }
+        //}
+        //PZ = PZ + Eigen::MatrixXd::Identity(n,n)*temp;
         //This is where randomized sampling is done 
-        temp = 0;
         for (int i = 0; i < N1; i++){
             std::random_shuffle ( myvector.begin(), myvector.end());
             for (int j = 0; j < n; j++){
                 random_x(j) = myvector[j];
             }
-            temp += random_x.transpose() * PZ * random_x;
+            temp = random_x.transpose() * PZ * random_x;
+            eff_r = eff_r*i/(i+1) + temp/(i+1);
         }
 
-        eff_r = temp/N1;
-        
         //This is where we do "optimal" sampling
         for (int i = 0; i < n; i++){
-            var_Delta_up = var_Delta + Z2.row(i).transpose();
-            var_Delta_down = var_Delta - Z2.row(i).transpose();
-            
+            var_Delta_up = var_Delta + Z2.block(i,1,1,p-1).transpose();
+            var_Delta_down = var_Delta - Z2.block(i,1,1,p-1).transpose();
+           
             mahalanobis_plus = var_Delta_up.transpose()*si*var_Delta_up;
             roundup_plus = ceil(mahalanobis_plus/delta);
             rounddown_plus = floor(mahalanobis_plus/delta);
@@ -286,10 +297,10 @@ int main()
                 dp_x(i) = -1;
             }
         }
-
+    
         eff_dp = dp_x.transpose()*PZ*dp_x;
-        ////std::cout << eff_r << ", " << eff_dp << "\n";
-
+        //std::cout << eff_r << ", " << eff_dp << "\n";
+        temp += eff_r/eff_dp;
         eff = eff*asdf/(asdf+1) + (eff_r/eff_dp)/(asdf+1);
     }
 
@@ -299,6 +310,14 @@ int main()
         }
         std::cout << "\n";
     } 
+
+    std::cout << temp/N1 << "\n";
     std::cout << eff << "\n";
+    std::cout << "\n" << PZ << "\n";
+    std::cout << "\n" << eff_r << "\n \n" << eff_dp << "\n";
+    std::cout << "\n" << dp_x << "\n \n" << dp_x.transpose()*PZ*dp_x;
+    Eigen::EigenSolver<Eigen::MatrixXd> es;
+    es.compute(PZ); 
+    std::cout << "\n" << es.eigenvalues();
 }
 
