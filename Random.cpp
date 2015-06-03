@@ -11,9 +11,9 @@ int main()
 {
     // Patients (n), attributes (p), iterations in solving DP (N1), iterations in estimation of ratio (N2);
     int p = 5;
-    int n = 10;
-    int N1 = 100;
-    int N2 = 100;
+    int n = 6;
+    int N1 = 10000;
+    int N2 = 10000;
 
     std::mt19937 generator1 (61245);
     std::mt19937 generator2 (16746);
@@ -27,6 +27,7 @@ int main()
     //s is Cholesky factorization of Covar matrix
     //mu is vector of patient attribute means
     Eigen::MatrixXf s(p,p);
+    Eigen::MatrixXf si(p,p);
     double zee [n][p];
     Eigen::MatrixXf Z2(n,p);
     double mu [p];
@@ -50,6 +51,8 @@ int main()
             }
         }
     }
+
+    si = s.inverse();
 
     double temp = 0;
 
@@ -92,11 +95,15 @@ int main()
     double roundup_minus = 0;
     double rounddown_minus = 0;
 
-    double distdown = 0;
-    double distup = 0;
+    double distdown_minus = 0;
+    double distup_minus = 0;
+    double distdown_plus = 0;
+    double distup_plus = 0;
 
     double plus = 0;
     double minus = 0;
+    int screwups = 0;
+
 
     //Boundary condition
     for (int i = 0; i < 2*n + 1; i++){
@@ -117,24 +124,52 @@ int main()
                 temp = 0;
                 for (int iter = 0; iter < N1; iter++){ 
                     lambda_up = pow(sqrt(lambda)+eta[iter],2)+xi[iter];
+                    lambda_down = pow(sqrt(lambda)-eta[iter],2)+xi[iter];
+                    
+                    if (lambda_down > M){
+                        lambda_down = M;
+                    }
+                    if (lambda_up > M){
+                        lambda_up = M;
+                    }
+
                     roundup_plus = ceil(lambda_up/delta);
                     rounddown_plus = floor(lambda_up/delta); 
-                    distdown = lambda_up - rounddown_plus;
-                    distup = rounddown_plus - lambda_down;
-                    plus = (1/delta)*(distdown*table.at(l-1, i+1, rounddown_plus) + distup*table.at(l-1, i+1, roundup_plus));
+                    distdown_plus  = lambda_up - rounddown_plus*delta;
+                    distup_plus = roundup_plus*delta - lambda_up;
 
-                    lambda_down = pow(sqrt(lambda)+eta[iter],2)+xi[iter];
                     roundup_minus = ceil(lambda_down/delta);
                     rounddown_minus = floor(lambda_down/delta);
-                    distdown = lambda_up - rounddown_minus;
-                    distup = roundup_minus - lambda_up;
-                    minus = (1/delta)*(distdown*table.at(l-1,i-1,rounddown_minus) + distup*table.at(l-1,i-1,roundup_minus));
+                    distdown_minus = lambda_down - rounddown_minus*delta;
+                    distup_minus = roundup_minus*delta - lambda_down;
+                    
+                    try{ 
+                        plus = (1/delta)*(distdown_plus*table.at(l-1, i+1, rounddown_plus) + distup_plus*table.at(l-1, i+1, roundup_plus));
+                        minus = (1/delta)*(distdown_minus*table.at(l-1,i-1,rounddown_minus) + distup_minus*table.at(l-1,i-1,roundup_minus));
+                   }
+                    catch (const std::out_of_range& e){
+                        std::cout << "roundup/down_plus " << roundup_plus << ", " << rounddown_plus << "\n";
+                        std::cout << "roundup/down_minus " << roundup_minus << ", " << rounddown_minus << "\n";   
+                        std::cout << "Line 151 \n";
+                        return 0;
+                    }
+                    temp = temp*iter/(iter+1) + std::min(plus,minus)/(iter+1);
 
-                    temp = temp*(iter-1)/iter + std::min(plus,minus)/iter;
+                    /*if(temp < 0){
+                        std::cout << lambda_down << " " << lambda_up << "\n";
+                        std::cout << distdown_plus << " " << distup_plus << "\n";
+                        std::cout << distdown_minus << " " << distup_minus << "\n";    
+                        return 0;
+                    }*/
+                }
+                
+                try{
+                    table.set(l,i,j,temp);          
+                } 
+                catch (const std::out_of_range& e){
+                    std::cout << "(" << l << ", " << i << ", " << j <<") \n";
                 }
 
-                table.set(l,i,j,temp);          
-                
             }
         }
     }
@@ -167,7 +202,8 @@ int main()
     Eigen::VectorXf var_Delta_up(p);
     Eigen::VectorXf var_Delta_down(p);
     int var_delta;
-    double mahalanobis = 0;
+    double mahalanobis_plus = 0;
+    double mahalanobis_minus = 0;
 
     //Large loop to test policies
     for (int asdf = 0; asdf < N2; asdf++){
@@ -208,25 +244,38 @@ int main()
         //This is where we do "optimal" sampling
         for (int i = 0; i < n; i++){
             var_Delta_up = var_Delta + Z2.row(i).transpose();
-            roundup_plus = ceil(mahalanobis/delta);
-            rounddown_plus = floor(mahalanobis/delta);
-            distdown = roundup_plus - mahalanobis/delta;
-            distup = mahalanobis/delta - rounddown_plus;
+            var_Delta_down = var_Delta - Z2.row(i).transpose();
+            
+            mahalanobis_plus = var_Delta_up.transpose()*si*var_Delta_up;
+            roundup_plus = ceil(mahalanobis_plus/delta);
+            rounddown_plus = floor(mahalanobis_plus/delta);
+            distup_plus = roundup_plus*delta - mahalanobis_plus;
+            distdown_plus = mahalanobis_plus - rounddown_plus*delta;
             //std::cout << var_delta << "\n";
             //std::cout << rounddown_plus << " " << roundup_plus << "\n";
             //std::cout << "(" << n-i-1 << "," << var_delta+1 << ", " << rounddown_plus << ") \n"; 
-            plus = (1/delta)*(distdown*table.at(n-i-1,var_delta+1, rounddown_plus) + distup*table.at(n-i-1,var_delta+1,roundup_plus));
             //std::cout << "plus done \n";
 
-            var_Delta_down = var_Delta - Z2.row(i).transpose();
-            mahalanobis = var_Delta_down.transpose()*s.inverse()*var_Delta_down;
-            roundup_minus = ceil(mahalanobis/delta);
-            rounddown_minus = ceil(mahalanobis/delta);
-            distdown = roundup_plus - mahalanobis/delta;
-            distup = mahalanobis/delta - rounddown_plus;
+            mahalanobis_minus = var_Delta_down.transpose()*si*var_Delta_down;
+            roundup_minus = ceil(mahalanobis_minus/delta);
+            rounddown_minus = floor(mahalanobis_minus/delta);
+            distup_minus = roundup_minus*delta - mahalanobis_minus;
+            distdown_minus = mahalanobis_minus - rounddown_minus*delta;
             //std::cout << "(" << n-i-1 << "," << var_delta-1 << ", " << rounddown_plus << ") \n";
-            minus = (1/delta)*(distdown*table.at(n-i-1,var_delta-1, rounddown_minus) + distup*table.at(n-i-1,var_delta-1,roundup_minus));
-
+           
+            try{
+            plus = (1/delta)*(distdown_plus*table.at(n-i-1,var_delta+1, rounddown_plus) + distup_plus*table.at(n-i-1,var_delta+1,roundup_plus));
+           minus = (1/delta)*(distdown_minus*table.at(n-i-1,var_delta-1, rounddown_minus) + distup_minus*table.at(n-i-1,var_delta-1,roundup_minus));
+            }
+            catch (const std::out_of_range& e){
+                std::cout << "mahalanobis_plus = " << mahalanobis_plus << "\n";
+                std::cout << "mahalanobis_minus = " << mahalanobis_minus << "\n";
+                std::cout << "distdown/up plus =" << distdown_plus << ", " << distup_plus << "\n";
+                std::cout << "distdown/up minus =" << distdown_minus << ", " << distup_minus << "\n";
+                std::cout << "line 273 \n";
+                std::cout << asdf << "\n";
+                screwups++;
+            }
             if (minus >= plus){
                 var_delta++;
                 var_Delta = var_Delta_up;
@@ -239,10 +288,17 @@ int main()
         }
 
         eff_dp = dp_x.transpose()*PZ*dp_x;
-        
-        eff += eff_r/eff_dp;
+        ////std::cout << eff_r << ", " << eff_dp << "\n";
+
+        eff = eff*asdf/(asdf+1) + (eff_r/eff_dp)/(asdf+1);
     }
 
-    std::cout << eff/N2 << "\n";
+    for (int l = 0; l < n; l++){
+        for (int i=0; i < 2*n+1;i++){
+            std::cout << table.at(l,i,0) << " ";
+        }
+        std::cout << "\n";
+    } 
+    std::cout << eff << "\n";
 }
 
