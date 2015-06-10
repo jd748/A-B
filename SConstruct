@@ -9,3 +9,4 @@ env.Append(CCFLAGS=['-pg'])
 env.Append(LINKFLAGS=['-pg'])
 
 main = env.Program("Random",["Random.cpp", "DP.cc"])
+env.Program("Random50_45mix", ["Random50_45mix.cpp", "DP.cc"])
